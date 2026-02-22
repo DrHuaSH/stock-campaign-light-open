@@ -19,6 +19,7 @@ from history_manager import HistoryManager
 from cycle_predictor import CyclePredictor
 from db_manager import StockDatabase
 from model_optimizer import ModelOptimizer
+from enhanced_analyzer import EnhancedStockAnalyzer
 
 # 页面配置
 st.set_page_config(
@@ -53,6 +54,9 @@ history_manager = HistoryManager()
 cycle_predictor = CyclePredictor()
 stock_db = StockDatabase()
 model_optimizer = ModelOptimizer()
+
+# 初始化增强分析器（延迟初始化，需要API配置）
+enhanced_analyzer = None
 
 
 # ============ 侧边栏 ============
@@ -150,7 +154,7 @@ with st.sidebar:
     st.subheader("导航")
     page = st.radio(
         "选择功能",
-        ["🏠 首页", "📊 单股分析", "📈 批量分析", "🧬 DNA管理", "📜 历史记录", "🎯 预测验证"]
+        ["🏠 首页", "📊 单股分析", "🔥 增强分析", "📈 批量分析", "🧬 DNA管理", "📜 历史记录", "🎯 预测验证"]
     )
     
     st.divider()
@@ -481,6 +485,234 @@ elif page == "📊 单股分析":
                     
                 except Exception as e:
                     st.error(f"❌ {stock_code} 分析失败: {str(e)}")
+
+
+elif page == "🔥 增强分析":
+    st.title("🔥 增强版三维度分析")
+    
+    st.markdown("""
+    ### 📊 技术面 + 📈 市场面 + 📰 信息面 = 综合判断
+    
+    增强版分析整合三个维度：
+    - **技术面**: HMM模型分析个股阶段
+    - **市场面**: 对比大盘/板块走势、相对强度
+    - **信息面**: Tavily搜索最新新闻、情绪分析
+    """)
+    
+    if not st.session_state.api_configured:
+        st.warning("⚠️ 请先配置API密钥（Tushare + LLM API）")
+        st.stop()
+    
+    # 初始化增强分析器
+    if enhanced_analyzer is None:
+        enhanced_analyzer = EnhancedStockAnalyzer(
+            tushare_token=st.session_state.tushare_token,
+            openai_api_key=st.session_state.openai_api_key,
+            openai_base_url=st.session_state.openai_base_url,
+            openai_model=st.session_state.openai_model
+        )
+    
+    # 输入区域
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        stock_input = st.text_input(
+            "输入股票代码",
+            placeholder="例如: 600519",
+            key="enhanced_stock"
+        )
+    with col2:
+        industry_input = st.text_input(
+            "所属行业（可选）",
+            placeholder="例如: 白酒、新能源",
+            key="enhanced_industry"
+        )
+    
+    # 分析选项
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        use_market = st.checkbox("市场面分析", value=True)
+    with col2:
+        use_news = st.checkbox("信息面分析", value=True)
+    with col3:
+        st.caption("信息面分析使用Tavily免费搜索API")
+    
+    if st.button("🔥 开始增强分析", type="primary", use_container_width=True):
+        if not stock_input:
+            st.warning("请输入股票代码")
+            st.stop()
+        
+        stock_code = stock_input.strip()
+        industry = industry_input.strip()
+        
+        with st.spinner(f"正在对 {stock_code} 进行三维度分析..."):
+            try:
+                # 1. 获取数据
+                fetcher = DataFetcher(st.session_state.tushare_token)
+                df, source = fetcher.fetch_stock_data(stock_code, days=500)
+                
+                if df is None:
+                    st.error(f"❌ 无法获取 {stock_code} 的数据")
+                    st.stop()
+                
+                stock_name = fetcher.get_stock_name(stock_code)
+                
+                # 2. 加载或生成DNA
+                dna = dna_manager.load_dna(stock_code)
+                if dna is None:
+                    with st.spinner("🧬 生成DNA..."):
+                        from hmm_analyzer import HMMAnalyzer
+                        hmm = HMMAnalyzer()
+                        dna = hmm.train(df)
+                        dna.stock_name = stock_name
+                        dna_manager.save_dna(dna)
+                        st.success("✅ DNA已生成")
+                
+                # 3. 执行增强分析
+                result = enhanced_analyzer.analyze(
+                    stock_code=stock_code,
+                    stock_name=stock_name,
+                    stock_df=df,
+                    dna=dna,
+                    industry=industry,
+                    use_market_context=use_market,
+                    use_news=use_news
+                )
+                
+                # 4. 显示结果
+                st.divider()
+                st.subheader(f"📊 {stock_code} {stock_name} - 增强分析结果")
+                
+                # 综合判断卡片
+                stage_emoji = {"吸筹期": "🟢", "拉升期": "🔵", "派发期": "🔴", "观望期": "⚪"}
+                stage_color = {"吸筹期": "green", "拉升期": "blue", "派发期": "red", "观望期": "gray"}
+                
+                st.markdown(f"""
+                <div style="padding: 20px; border-radius: 10px; background-color: {'#1a1a2e' if result.final_stage == '拉升期' else '#2d132c' if result.final_stage == '派发期' else '#1e3a3a' if result.final_stage == '吸筹期' else '#2c2c2c'}; color: white;">
+                    <h2 style="margin: 0;">{stage_emoji.get(result.final_stage, '')} 综合判断: {result.final_stage}</h2>
+                    <p style="font-size: 18px; margin: 10px 0;">置信度: {result.final_confidence:.1%} | 风险等级: {result.risk_level.upper()}</p>
+                    <p style="font-size: 16px; margin: 10px 0;"><strong>操作建议:</strong> {result.recommendation}</p>
+                    <p style="font-size: 14px; color: #cccccc;">{result.comprehensive_analysis}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # 三维度详情
+                tab1, tab2, tab3 = st.tabs(["📊 技术面", "📈 市场面", "📰 信息面"])
+                
+                with tab1:
+                    st.write("**HMM模型分析**")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("技术阶段", result.technical_stage)
+                    with col2:
+                        st.metric("技术置信度", f"{result.technical_confidence:.1%}")
+                    
+                    # 各阶段概率
+                    st.write("**各阶段概率:**")
+                    probs = result.technical_details.get('all_stage_probs', {})
+                    prob_cols = st.columns(4)
+                    for i, (stage, prob) in enumerate(probs.items()):
+                        with prob_cols[i]:
+                            st.progress(prob, text=f"{stage}: {prob:.1%}")
+                    
+                    # 特征分析
+                    with st.expander("特征分析详情"):
+                        features = result.technical_details.get('feature_analysis', {})
+                        for name, value in features.items():
+                            st.write(f"- {name}: {value:.4f}")
+                
+                with tab2:
+                    if result.market_context:
+                        st.write("**市场环境**")
+                        
+                        # 大盘趋势
+                        index_trends = result.market_context.get('大盘趋势', {})
+                        if index_trends:
+                            st.write("**大盘趋势:**")
+                            for idx, trend in list(index_trends.items())[:3]:
+                                st.write(f"- {idx}: {trend}")
+                        
+                        # 相对强度
+                        st.write("**相对强度:**")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            rs_index = result.relative_strength.get('vs_index', 0)
+                            st.metric("相对大盘", f"{rs_index:+.1%}", 
+                                     delta="强于大盘" if rs_index > 0 else "弱于大盘")
+                        with col2:
+                            rs_sector = result.relative_strength.get('vs_sector', 0)
+                            st.metric("相对板块", f"{rs_sector:+.1%}",
+                                     delta="强于板块" if rs_sector > 0 else "弱于板块")
+                        
+                        # 市场情绪
+                        sentiment = result.market_context.get('市场情绪', '未知')
+                        sentiment_emoji = {
+                            '极度乐观': '😄', '乐观': '🙂', '中性': '😐',
+                            '恐慌': '😟', '极度恐慌': '😱'
+                        }
+                        st.write(f"**市场情绪:** {sentiment_emoji.get(sentiment, '')} {sentiment}")
+                    else:
+                        st.info("未启用市场面分析")
+                
+                with tab3:
+                    if result.news_analysis and result.news_analysis.get('股票代码'):
+                        st.write("**新闻情绪分析**")
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            sentiment = result.news_analysis.get('新闻情绪', 'unknown')
+                            sentiment_display = {'positive': '积极', 'negative': '消极', 'neutral': '中性'}
+                            st.metric("新闻情绪", sentiment_display.get(sentiment, sentiment))
+                        with col2:
+                            st.metric("情绪分数", result.news_analysis.get('情绪分数', 0))
+                        
+                        # 关键事件
+                        key_events = result.news_analysis.get('关键事件', [])
+                        if key_events:
+                            st.write("**关键事件:**")
+                            for event in key_events:
+                                st.write(f"- {event}")
+                        
+                        # 风险与机会
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            risks = result.news_analysis.get('风险信号', [])
+                            if risks:
+                                st.write("**⚠️ 风险信号:**")
+                                for r in risks:
+                                    st.write(f"- {r}")
+                        with col2:
+                            opportunities = result.news_analysis.get('机会信号', [])
+                            if opportunities:
+                                st.write("**✅ 机会信号:**")
+                                for o in opportunities:
+                                    st.write(f"- {o}")
+                        
+                        # 综合摘要
+                        with st.expander("新闻摘要"):
+                            st.write(result.news_analysis.get('综合摘要', '暂无'))
+                    else:
+                        st.info("未启用信息面分析")
+                
+                # 保存历史
+                full_data = {
+                    'stock_code': stock_code,
+                    'stock_name': stock_name,
+                    'enhanced_analysis': result.to_dict(),
+                    'data_source': source
+                }
+                history_manager.save_analysis(
+                    stock_code, stock_name,
+                    {'current_stage': result.technical_stage, 'confidence': result.technical_confidence},
+                    {'stage_agreement': result.final_stage, 'suggestion': result.recommendation},
+                    df['close'].iloc[-1], full_data
+                )
+                
+                st.success("✅ 分析结果已保存到历史记录")
+                
+            except Exception as e:
+                st.error(f"❌ 分析失败: {str(e)}")
+                import traceback
+                st.error(traceback.format_exc())
 
 
 elif page == "📈 批量分析":
