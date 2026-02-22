@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+venv_old/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific - Sensitive data
+user_config.json
+
+# Data directories (optional, depending on your preference)
+# 如果你想把示例数据也提交，可以注释掉下面几行
+data/
+dna_history/
+analysis_history/
+
+# Logs
+*.log
+
+# OS files
+._*
+Thumbs.db
