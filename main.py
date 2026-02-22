@@ -544,56 +544,39 @@ elif page == "🔥 增强分析":
         stock_code = stock_input.strip()
         industry = industry_input.strip()
         
-        # 创建进度区域
-        progress_area = st.empty()
-        status_area = st.empty()
-        
-        try:
-            # 1. 获取数据
-            status_area.info("📥 正在获取股票数据...")
-            fetcher = DataFetcher(st.session_state.tushare_token)
-            df, source = fetcher.fetch_stock_data(stock_code, days=500)
-            
-            if df is None:
-                st.error(f"❌ 无法获取 {stock_code} 的数据")
-                st.stop()
-            
-            stock_name = fetcher.get_stock_name(stock_code)
-            status_area.success(f"✅ 数据获取完成: {stock_name} ({len(df)}天)")
-            
-            # 2. 加载或生成DNA
-            dna = dna_manager.load_dna(stock_code)
-            if dna is None:
-                status_area.info("🧬 正在生成DNA...")
-                from hmm_analyzer import HMMAnalyzer
-                hmm = HMMAnalyzer()
-                dna = hmm.train(df)
-                dna.stock_name = stock_name
-                dna_manager.save_dna(dna)
-                status_area.success("✅ DNA已生成并保存")
-            else:
-                status_area.info(f"📦 已加载DNA: {dna.created_at[:10]}")
-            
-            # 3. 执行增强分析（分步骤）
-            status_area.info("🔍 开始三维度分析...")
-            
-            # 技术分析
-            if use_market:
-                status_area.info("📈 正在进行市场面分析...")
-            if use_news:
-                status_area.info("📰 正在进行信息面分析（Tavily搜索）...")
-            
-            result = enhanced_analyzer.analyze(
-                stock_code=stock_code,
-                stock_name=stock_name,
-                stock_df=df,
-                dna=dna,
-                industry=industry,
-                use_market_context=use_market,
-                use_news=use_news
-            )
-            
-            status_area.empty()  # 清除状态信息
+        with st.spinner(f"正在对 {stock_code} 进行三维度分析..."):
+            try:
+                # 1. 获取数据
+                fetcher = DataFetcher(st.session_state.tushare_token)
+                df, source = fetcher.fetch_stock_data(stock_code, days=500)
+                
+                if df is None:
+                    st.error(f"❌ 无法获取 {stock_code} 的数据")
+                    st.stop()
+                
+                stock_name = fetcher.get_stock_name(stock_code)
+                
+                # 2. 加载或生成DNA
+                dna = dna_manager.load_dna(stock_code)
+                if dna is None:
+                    with st.spinner("🧬 生成DNA..."):
+                        from hmm_analyzer import HMMAnalyzer
+                        hmm = HMMAnalyzer()
+                        dna = hmm.train(df)
+                        dna.stock_name = stock_name
+                        dna_manager.save_dna(dna)
+                        st.success("✅ DNA已生成")
+                
+                # 3. 执行增强分析
+                result = enhanced_analyzer.analyze(
+                    stock_code=stock_code,
+                    stock_name=stock_name,
+                    stock_df=df,
+                    dna=dna,
+                    industry=industry,
+                    use_market_context=use_market,
+                    use_news=use_news
+                )
                 
                 # 4. 显示结果
                 st.divider()

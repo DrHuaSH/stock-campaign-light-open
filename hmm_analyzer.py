@@ -448,7 +448,21 @@ class HMMAnalyzer:
         )
         self.model.transmat_ = np.array(dna.transition_matrix)
         self.model.means_ = np.array(dna.means)
-        self.model.covars_ = np.array(dna.covars)
+        
+        # 处理 covars 维度问题
+        # 对于 diag 协方差类型，covars 应该是 (n_components, n_dim)
+        covars = np.array(dna.covars)
+        n_dim = self.model.means_.shape[1]
+        
+        # 如果 covars 维度不对，进行调整
+        if covars.ndim == 1:
+            # 如果是一维数组，可能是 (n_components,)，需要扩展为 (n_components, n_dim)
+            covars = np.tile(covars.reshape(-1, 1), (1, n_dim))
+        elif covars.shape != (dna.n_states, n_dim):
+            # 如果形状不匹配，重新初始化
+            covars = np.ones((dna.n_states, n_dim))
+        
+        self.model.covars_ = covars
         self.n_states = dna.n_states
         
         # 重建状态到阶段的映射
