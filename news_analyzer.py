@@ -162,7 +162,7 @@ class NewsAnalyzer:
                         "time_range": "week"  # 最近一周
                     }
                     
-                    response = requests.post(url, json=payload, timeout=30)
+                    response = requests.post(url, json=payload, timeout=15)
                     response.raise_for_status()
                     result = response.json()
                     
