@@ -39,6 +39,7 @@ if 'api_configured' not in st.session_state:
     st.session_state.openai_api_key = config.get('openai_api_key', '')
     st.session_state.openai_base_url = config.get('openai_base_url', 'https://api.openai.com/v1')
     st.session_state.openai_model = config.get('openai_model', 'gpt-3.5-turbo')
+    st.session_state.tavily_api_key = config.get('tavily_api_key', '')
 
 # 确保 api_configured 始终与当前配置同步
 st.session_state.api_configured = bool(
@@ -125,14 +126,25 @@ with st.sidebar:
         openai_base_url = config["base_url"]
         openai_model = config["model"]
     
+    st.divider()
+    st.markdown("**📰 Tavily API 配置 (可选)**")
+    
+    tavily_api_key = st.text_input(
+        "Tavily API Key",
+        value=st.session_state.tavily_api_key,
+        type="password",
+        help="用于新闻搜索，免费版每月1000次。在 https://tavily.com 获取"
+    )
+    
     col1, col2 = st.columns(2)
     with col1:
         if st.button("💾 保存密钥", use_container_width=True):
-            save_api_keys(tushare_token, openai_api_key, openai_base_url, openai_model)
+            save_api_keys(tushare_token, openai_api_key, openai_base_url, openai_model, tavily_api_key)
             st.session_state.tushare_token = tushare_token
             st.session_state.openai_api_key = openai_api_key
             st.session_state.openai_base_url = openai_base_url
             st.session_state.openai_model = openai_model
+            st.session_state.tavily_api_key = tavily_api_key
             st.session_state.api_configured = bool(tushare_token and openai_api_key)
             st.success("已保存")
     
@@ -509,7 +521,8 @@ elif page == "🔥 增强分析":
             tushare_token=st.session_state.tushare_token,
             openai_api_key=st.session_state.openai_api_key,
             openai_base_url=st.session_state.openai_base_url,
-            openai_model=st.session_state.openai_model
+            openai_model=st.session_state.openai_model,
+            tavily_api_key=st.session_state.get('tavily_api_key', '')
         )
     
     # 输入区域

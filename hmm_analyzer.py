@@ -7,9 +7,18 @@ import pandas as pd
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, asdict
 import json
-from hmmlearn import hmm
 
 from config import HMM_CONFIG, STAGE_NAMES, STAGE_NAMES_EN
+
+# 延迟导入 hmmlearn（避免启动时耗时）
+hmm = None
+
+def _import_hmm():
+    global hmm
+    if hmm is None:
+        from hmmlearn import hmm as hmm_module
+        hmm = hmm_module
+    return hmm
 
 
 @dataclass
@@ -251,7 +260,8 @@ class HMMAnalyzer:
         features = features_df[self.feature_names].values
         
         # 创建并训练HMM模型
-        self.model = hmm.GaussianHMM(
+        hmm_module = _import_hmm()
+        self.model = hmm_module.GaussianHMM(
             n_components=self.n_states,
             covariance_type="diag",
             n_iter=HMM_CONFIG["n_iter"],
@@ -440,7 +450,8 @@ class HMMAnalyzer:
     
     def _load_from_dna(self, dna: StockDNA):
         """从DNA加载模型参数"""
-        self.model = hmm.GaussianHMM(
+        hmm_module = _import_hmm()
+        self.model = hmm_module.GaussianHMM(
             n_components=dna.n_states,
             covariance_type="diag",
             n_iter=1,
@@ -463,6 +474,21 @@ class HMMAnalyzer:
             covars = np.ones((dna.n_states, n_dim))
         
         self.model.covars_ = covars
+        
+        # 设置初始状态概率（均匀分布）
+        self.model.startprob_ = np.ones(dna.n_states) / dna.n_states
+        
+        # 设置 n_features_in_（hmmlearn 需要的属性）
+        self.model.n_features_in_ = n_dim
+        
+        # 创建 monitor 对象（如果不存在）
+        if not hasattr(self.model, 'monitor_'):
+            from hmmlearn import _utils
+            self.model.monitor_ = _utils.ConvergenceMonitor(
+                self.model.tol, self.model.n_iter, self.model.verbose
+            )
+            self.model.monitor_.report(self.model)
+        
         self.n_states = dna.n_states
         
         # 重建状态到阶段的映射

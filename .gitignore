@@ -52,3 +52,10 @@ analysis_history/
 # OS files
 ._*
 Thumbs.db
+
+# Local package cache (large binary files)
+packages/
+
+# Screenshots
+app_working.png
+*_screenshot.png

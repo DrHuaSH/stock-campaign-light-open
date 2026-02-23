@@ -29,17 +29,19 @@ def load_api_keys():
         "tushare_token": "",
         "openai_api_key": "",
         "openai_base_url": "https://api.openai.com/v1",
-        "openai_model": "gpt-3.5-turbo"
+        "openai_model": "gpt-3.5-turbo",
+        "tavily_api_key": ""
     }
 
 
-def save_api_keys(tushare_token: str, openai_api_key: str, openai_base_url: str, openai_model: str):
+def save_api_keys(tushare_token: str, openai_api_key: str, openai_base_url: str, openai_model: str, tavily_api_key: str = ""):
     """保存API密钥到本地"""
     config = {
         "tushare_token": tushare_token,
         "openai_api_key": openai_api_key,
         "openai_base_url": openai_base_url,
-        "openai_model": openai_model
+        "openai_model": openai_model,
+        "tavily_api_key": tavily_api_key
     }
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         json.dump(config, f, ensure_ascii=False, indent=2)

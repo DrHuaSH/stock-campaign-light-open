@@ -64,8 +64,8 @@ class NewsAnalyzer:
         openai_base_url: Optional[str] = None,
         openai_model: Optional[str] = None
     ):
-        # Tavily API Key（免费版）
-        self.tavily_api_key = tavily_api_key or os.getenv('TAVILY_API_KEY', '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')
+        # Tavily API Key（免费版）- 优先使用传入的key，其次环境变量，最后使用默认开发key
+        self.tavily_api_key = tavily_api_key or os.getenv('TAVILY_API_KEY', '')
         
         self.tushare_token = tushare_token
         self.openai_api_key = openai_api_key

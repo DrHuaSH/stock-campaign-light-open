@@ -4,13 +4,29 @@
 """
 import pandas as pd
 import numpy as np
-import tushare as ts
-import akshare as ak
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 import time
 
 from db_manager import StockDatabase
+
+# 延迟导入 tushare 和 akshare（避免启动时网络连接）
+ts = None
+ak = None
+
+def _import_tushare():
+    global ts
+    if ts is None:
+        import tushare as ts_module
+        ts = ts_module
+    return ts
+
+def _import_akshare():
+    global ak
+    if ak is None:
+        import akshare as ak_module
+        ak = ak_module
+    return ak
 
 
 class DataFetcher:
@@ -21,8 +37,9 @@ class DataFetcher:
         self.pro = None
         if tushare_token:
             try:
-                ts.set_token(tushare_token)
-                self.pro = ts.pro_api()
+                ts_module = _import_tushare()
+                ts_module.set_token(tushare_token)
+                self.pro = ts_module.pro_api()
             except:
                 pass
         
@@ -164,7 +181,8 @@ class DataFetcher:
         
         # 2. 备份使用 AKShare
         try:
-            df = ak.stock_zh_a_hist(
+            ak_module = _import_akshare()
+            df = ak_module.stock_zh_a_hist(
                 symbol=stock_code,
                 period="daily",
                 start_date=start_date.strftime('%Y%m%d'),
@@ -253,7 +271,8 @@ class DataFetcher:
         list_date = self.db.get_list_date(pure_code)
         
         try:
-            df = ak.stock_individual_info_em(symbol=pure_code)
+            ak_module = _import_akshare()
+            df = ak_module.stock_individual_info_em(symbol=pure_code)
             if df is not None and not df.empty:
                 name = df[df['item'] == '股票简称']['value'].values[0]
                 # 保存到本地
